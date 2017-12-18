@@ -142,7 +142,7 @@ JS对象具有自有属性，同样也有一些属性是从原型对象继承而
 
 查询和设置属性描述符
 * Object.getOwnPropertyDescriptor获取对象某个特定自有属性的属性描述符
-* Object.getOwnPropertyDescriptors获取对象的所有自有属性的属性描述符
+* Object.getOwnPropertyDescriptors （ES2017添加）获取对象的所有自有属性的属性描述符
 * Object.defineProperty设置对象某个特定自有属性的属性描述符
 * Object.definePropertys设置对象多个自有属性的属性描述符
 
@@ -219,9 +219,128 @@ JS中基于原型的继承是动态的：对象从其原型继承属性，如果
 
 也即是说，ES6中的class保证了class的构造函数的原型对象是不可变的，但是你可以往原型对象上添加属性。
 
+	Object.getOwnPropertyDescriptors(A)
+	
+	{length: {…}, prototype: {…}, name: {…}}
+	length:{value: 0, writable: false, enumerable: false, configurable: true}
+	name:{value: "A", writable: false, enumerable: false, configurable: true}
+	prototype:{value: {…}, writable: false, enumerable: false, configurable: false}
+	__proto__:Object
+	
+
 ## ES6对象的扩展
 
+### 对象字面量语法扩展
+* 对象属性的简写
+* 对象方法的简写
+	* 使用简写的对象方法会有name属性
+* 可计算属性名
+
+### 增加的方法
+* Object.is 进行”同值相等“的比较 与===有两点不同
+	* +0 不等于 -0
+	* NaN 等于自身
+* Object.assign ***deprecated*** 建议使用对象扩展符...; 值得一提的是Object.assign和...对于具有getter方法的accessor属性会求值处理为数据属性。
+
+Object.getOwnPropertyDescriptors可以用来
+
+* 配合Object.defineProperties解决Object.assign无法正确拷贝get和set属性的问题
+* 配合Object.create方法，将对象属性克隆到一个新对象。这属于浅拷贝。
+
+### 属性的可枚举性与遍历
+
+以下操作只操作对象的可枚举属性；其中for-in操作自有和继承属性，其余操作的都是自有属性
+
+* for-in
+* Object.keys
+* JSON.stringify
+* Object.assign/...  
+
+值得一提的是，所有class的原型方法都是不可枚举的。
+
+	class A {
+	 sayName() { return 'myName';}
+	}
+	Object.getOwnPropertyDescriptors(A.prototype)
+	
+	{constructor: {…}, sayName: {…}}
+	constructor:{writable: true, enumerable: false, configurable: true, value: ƒ}
+	sayName:{writable: true, enumerable: false, configurable: true, value: ƒ}
+	__proto__:Object
+
+
+遍历对象属性的5种方法：
+
+* for-in 遍历可枚举的自有和继承属性
+* Object.keys 可枚举的自有属性
+* Object.getOwnPropertyNames 自有属性
+* Object.getOwnPropertySymbols 自有symbol属性
+* Reflect.ownKeys 自有属性（包括Symbol属性）
+
+
+ES6规定了自有属性枚举顺序；自有属性枚举顺序的基本规则是：
+
+* 所有数字键按升序排序
+* 所有字符串键按加入对象的顺序排序
+* 所有symbol键按加入对象的顺序排序
+
+Object.getOwnPropertyNames、Reflect.ownKeys、Object.assign和对象扩展符...都会受该规则影响；而for-in、Object.keys、JSON.stringify的枚举顺序则并不明确(由浏览器的具体实现决定，v8的顺序与规则一致)
+
+### 增强对象原型
+
+_____proto_____ 属性; 用来读取或设置当前兑现的原型对象。只有现代浏览器支持该属性。不推荐使用。deprecated。如果需要使用，可以这样进行定义。
+
+	Object.defineProperty(Object.prototype, '__proto__', {
+	  get() {
+	    let _thisObj = Object(this);
+	    return Object.getPrototypeOf(_thisObj);
+	  },
+	  set(proto) {
+	    if (this === undefined || this === null) {
+	      throw new TypeError();
+	    }
+	    if (!isObject(this)) {
+	      return undefined;
+	    }
+	    if (!isObject(proto)) {
+	      return undefined;
+	    }
+	    let status = Reflect.setPrototypeOf(this, proto);
+	    if (!status) {
+	      throw new TypeError();
+	    }
+	  },
+	});
+	
+	function isObject(value) {
+	  return Object(value) === value;
+	}
+
+推荐使用
+
+* Object.setPrototypeOf
+* Object.getPrototypeOf
+
+### 正式的方法定义
+对象方法的简写能够让JS引擎确定定义的是对象的方法。这个方法会有一个额内部的[[HomeObject]]属性来容纳这个方法从属的对象。
+
+### 简化原型访问的super引用
+super指向当前对象的原型对象，只能用在对象的方法之中。使用super等同于Object. getPrototypeOf(this)
+
+### Obect.values和Object.entries
+Object.values 返回对象可遍历的自有属性的值
+Object.entries 返回对象可遍历的自有属性的键值对数组
+
 ## ES6中的class
+
+如前文所述，ES6中的class只是ES5基于原型的继承的语法糖。但是ES6为我们提供了很多的便利，让我们可以更简单的使用类的特性。
+
+	class A {}
+	typeof A // "function"
+	A === A.prototype.constructor // true
+
+类的数据类型就是函数，类本身就指向构造函数。
+构造函数的prototype属性，在ES的“类”上继续存在。类的所有实例方法都定义在类的prototype属性上。
 
 ## Typescript中的class
 

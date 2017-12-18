@@ -52,7 +52,7 @@ Object.getPrototypeOf(Array.prototype) === Object.prototype
 这一系列链接的原型对象就是所谓的属性和方法。
 
 ### JS中的继承
-JS对象具有自有属性，同样也有一些属性是从原型对象继承而来的（继承属性）。那么JS对象是如何访问属性的呢？
+JS对象具有自有属性，同样也有一些属性是从原型对象继承而来的（继承属性）。那么JS对象是如何访问属性的呢？
 
 一个🌰 :  
 
@@ -117,7 +117,7 @@ JS对象具有自有属性，同样也有一些属性是从原型对象继承而
 
 
 ### 检测属性
-可以通过in、hasOwnProperty、propertyIsEnumerable来判断某个属性是否存在于某个对象中。
+可以通过in、hasOwnProperty、propertyIsEnumerable来判断某个属性是否存在于某个对象中。
 
 * in判断对象中是否包括同名自有属性和继承属性
 * hasOwnProperty判断对象中是否有同名自有属性

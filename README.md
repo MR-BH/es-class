@@ -291,7 +291,7 @@ Object.getOwnPropertyNames、Reflect.ownKeys、Object.assign和对象扩展符..
 
 ### 增强对象原型
 
-_____proto_____ 属性; 用来读取或设置当前兑现的原型对象。只有现代浏览器支持该属性。不推荐使用。deprecated。如果需要使用，可以这样进行定义。
+`__proto__` 属性; 用来读取或设置当前兑现的原型对象。只有现代浏览器支持该属性。不推荐使用。deprecated。如果需要使用，可以这样进行定义。
 
 	Object.defineProperty(Object.prototype, '__proto__', {
 	  get() {
@@ -367,6 +367,510 @@ say就是A的一个静态方法。类的实例属性（方法）定义在类的�
 	Object.getPrototypeOf(B) === A // true
 	
 子类的原型是父类（构造函数）; 所以父类的静态方法和静态属性都能被子类继承。
+在JS中创建子类的关键之处就在于，采用合适的方法对原型对象进行初始化。如果类B继承与类A,B的prototype必须是A.prototype的后嗣。所以在ES5中，往往有这样的代码来实现继承：
 
-## Typescript中的class
+	function A() {}
+	A.prototype = {
+		do: function () {},
+		constructor: A,
+	}
+	function B() {}
+	B.prototype = Object.create(A.prototype);
+	B.prototype.constructor = B
+	b instanceof B // true
+	b instanceof A // true
+	
+而在ES6中，相当于多加了这么一句
 
+	Object.setPrototypeOf(B, A)
+	
+结果就是: B的原型是A，B.prototype的原型是A.prototype，完美的实现了类的实例属性和静态属性的继承。
+	
+### 语法糖
+
+我们来看Babel转译后的class
+
+编译前
+
+	class A {
+	  	static getName() {
+	    	return A.name
+	    }
+	  	static name = 'AAA'
+		sayHello() {
+	     console.log('Hello')
+	    }
+		canSay = true
+	}
+	class B extends A {
+		sayHello() {
+			super.sayHello();
+	      	console.log('Again!');
+		}
+	}
+
+
+编译后(只保留了关键部分)
+
+	
+	'use strict';
+	
+	var _get = function get(object, property, receiver) { 
+		if (object === null) object = Function.prototype; 
+		var desc = Object.getOwnPropertyDescriptor(object, property); 
+		if (desc === undefined) { 
+			// 若过当前对象没有该属性，则查找该对象的原型对象，重复该流程
+			var parent = Object.getPrototypeOf(object); 
+			if (parent === null) { 
+				// 如果Object.prototype上依然没有该属性，则返回undefined
+				return undefined; 
+			} else { 
+				return get(parent, property, receiver); 
+			} 
+		} else if ("value" in desc) { 
+			// 处理数据属性
+			return desc.value; 
+		} else { 
+			// 处理get/set属性
+			var getter = desc.get; 
+			if (getter === undefined) { 
+				return undefined; 
+			} 
+			return getter.call(receiver); 
+		} 
+	};
+	
+	var _createClass = function () { 
+		function defineProperties(target, props) { 
+			for (var i = 0; i < props.length; i++) { 
+				// 设置属性特性
+				var descriptor = props[i]; 
+				descriptor.enumerable = descriptor.enumerable || false;
+				descriptor.configurable = true; 
+				if ("value" in descriptor) descriptor.writable = true; 
+				Object.defineProperty(target, descriptor.key, descriptor); 
+			} 
+		} 
+		return function (Constructor, protoProps, staticProps) { 
+			if (protoProps) defineProperties(Constructor.prototype, protoProps); 
+			if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; 
+	}();
+	
+	
+	function _inherits(subClass, superClass) { 
+		subClass.prototype = Object.create(superClass.prototype, { 
+			constructor: { value: subClass, enumerable: false, writable: true, configurable: true }, 
+		}); 
+		Object.setPrototypeOf ? 
+			Object.setPrototypeOf(subClass, superClass) 
+			: 
+			subClass.__proto__ = superClass; 
+	}
+
+	
+	var A = function () {
+	  function A() {
+
+	    this.canSay = true;
+	  }
+	
+	  _createClass(A, [{
+	    key: 'sayHello',
+	    value: function sayHello() {
+	      console.log('Hello');
+	    }
+	  }], [{
+	    key: 'getName',
+	    value: function getName() {
+	      return A.name;
+	    }
+	  }]);
+	
+	  return A;
+	}();
+	
+	A.name = 'AAA';
+	
+	var B = function (_A) {
+	  _inherits(B, _A);
+	
+	  function B() {
+
+	  }
+	
+	  _createClass(B, [{
+	    key: 'sayHello',
+	    value: function sayHello() {
+	      _get(B.prototype.__proto__ || Object.getPrototypeOf(B.prototype), 'sayHello', this).call(this);
+	      console.log('Again!');
+	    }
+	  }]);
+	
+	  return B;
+	}(A);
+
+## TypeScript中的class
+
+本段内容皆摘抄自TypeScript中文网，待对TS有更深入的使用和了解后再行更新。  
+
+TS是JS的超集，ES6所有关于class的语法TS都支持，而且TS还支持了更多的特性
+
+一个最简单的🌰：
+
+	class Greeter {
+	    greeting: string;
+	    constructor(message: string) {
+	        this.greeting = message;
+	    }
+	    greet() {
+	        return "Hello, " + this.greeting;
+	    }
+	}
+	
+	let greeter = new Greeter("world");
+
+复杂一点的🌰：
+
+	class Animal {
+	    name: string;
+	    constructor(theName: string) { this.name = theName; }
+	    move(distanceInMeters: number = 0) {
+	        console.log(`${this.name} moved ${distanceInMeters}m.`);
+	    }
+	}
+	
+	class Snake extends Animal {
+	    constructor(name: string) { super(name); }
+	    move(distanceInMeters = 5) {
+	        console.log("Slithering...");
+	        super.move(distanceInMeters);
+	    }
+	}
+	
+	class Horse extends Animal {
+	    constructor(name: string) { super(name); }
+	    move(distanceInMeters = 45) {
+	        console.log("Galloping...");
+	        super.move(distanceInMeters);
+	    }
+	}
+	
+	let sam = new Snake("Sammy the Python");
+	let tom: Animal = new Horse("Tommy the Palomino");
+	
+	sam.move();
+	tom.move(34);
+
+
+### 熟悉的公共，私有与受保护的修饰符（public，private，protected）
+
+在TypeScript里，成员都默认为 public。
+
+	class Animal {
+	    public name: string;
+	    public constructor(theName: string) { this.name = theName; }
+	    public move(distanceInMeters: number) {
+	        console.log(`${this.name} moved ${distanceInMeters}m.`);
+	    }
+	}
+	===
+	class Animal {
+	    name: string;
+	    constructor(theName: string) { this.name = theName; }
+	    move(distanceInMeters: number) {
+	        console.log(`${this.name} moved ${distanceInMeters}m.`);
+	    }
+	}
+	
+当成员被标记成 private时，它就不能在声明它的类的外部访问。
+
+	class Animal {
+	    private name: string;
+	    constructor(theName: string) { this.name = theName; }
+	}
+	
+	new Animal("Cat").name; // 错误: 'name' 是私有的.
+	
+TypeScript使用的是结构性类型系统。 当我们比较两种不同的类型时，并不在乎它们从何处而来，如果所有成员的类型都是兼容的，我们就认为它们的类型是兼容的。
+然而，当我们比较带有 private或 protected成员的类型的时候，情况就不同了。 如果其中一个类型里包含一个 private成员，那么只有当另外一个类型中也存在这样一个 private成员， 并且它们都是来自同一处声明时，我们才认为这两个类型是兼容的。 对于 protected成员也使用这个规则。
+
+	class Animal {
+	    private name: string;
+	    constructor(theName: string) { this.name = theName; }
+	}
+	
+	class Rhino extends Animal {
+	    constructor() { super("Rhino"); }
+	}
+	
+	class Employee {
+	    private name: string;
+	    constructor(theName: string) { this.name = theName; }
+	}
+	
+	let animal = new Animal("Goat");
+	let rhino = new Rhino();
+	let employee = new Employee("Bob");
+	
+	animal = rhino;
+	animal = employee; // 错误: Animal 与 Employee 不兼容.
+	
+
+protected修饰符与 private修饰符的行为很相似，但有一点不同， protected成员在派生类中仍然可以访问。例如：
+
+	class Person {
+	    protected name: string;
+	    constructor(name: string) { this.name = name; }
+	}
+
+	class Employee extends Person {
+	    private department: string;
+	
+	    constructor(name: string, department: string) {
+	        super(name)
+	        this.department = department;
+	    }
+	
+	    public getElevatorPitch() {
+	        return `Hello, my name is ${this.name} and I work in ${this.department}.`;
+	    }
+	}
+	
+	let howard = new Employee("Howard", "Sales");
+	console.log(howard.getElevatorPitch());
+	console.log(howard.name); // 错误
+	
+构造函数也可以被标记成 protected。 这意味着这个类不能在包含它的类外被实例化，但是能被继承。有趣的是，在ES6里我们是通过判断new.target来实现这一特性的。
+
+	class Person {
+	    protected name: string;
+	    protected constructor(theName: string) { this.name = theName; }
+	}
+	
+	// Employee 能够继承 Person
+	class Employee extends Person {
+	    private department: string;
+	
+	    constructor(name: string, department: string) {
+	        super(name);
+	        this.department = department;
+	    }
+	
+	    public getElevatorPitch() {
+	        return `Hello, my name is ${this.name} and I work in ${this.department}.`;
+	    }
+	}
+	
+	let howard = new Employee("Howard", "Sales");
+	let john = new Person("John"); // 错误: 'Person' 的构造函数是被保护的.
+	
+### readonly
+	
+你可以使用 readonly关键字将属性设置为只读的。 只读属性必须在声明时或构造函数里被初始化。
+
+	class Octopus {
+	    readonly name: string;
+	    readonly numberOfLegs: number = 8;
+	    constructor (theName: string) {
+	        this.name = theName;
+	    }
+	}
+	let dad = new Octopus("Man with the 8 strong legs");
+	dad.name = "Man with the 3-piece suit"; // 错误! name 是只读的.
+
+### 参数属性
+
+参数属性可以方便地让我们在一个地方定义并初始化一个成员。 下面的例子是对之前 Animal类的修改版，使用了参数属性
+
+	class Animal {
+	    constructor(private name: string) { }
+	    move(distanceInMeters: number) {
+	        console.log(`${this.name} moved ${distanceInMeters}m.`);
+	    }
+	}
+
+注意看我们是如何舍弃了 theName，仅在构造函数里使用 private name: string参数来创建和初始化 name成员。 我们把声明和赋值合并至一处。
+
+参数属性通过给构造函数参数添加一个访问限定符来声明。 使用 private限定一个参数属性会声明并初始化一个私有成员；对于 public和 protected来说也是一样。
+
+### 存取器
+
+语法基本和JS保持一致。只带有get不带有set的存取器自动被推断为 readonly。
+
+	let passcode = "secret passcode";
+	
+	class Employee {
+	    private _fullName: string;
+	
+	    get fullName(): string {
+	        return this._fullName;
+	    }
+	
+	    set fullName(newName: string) {
+	        if (passcode && passcode == "secret passcode") {
+	            this._fullName = newName;
+	        }
+	        else {
+	            console.log("Error: Unauthorized update of employee!");
+	        }
+	    }
+	}
+	
+	let employee = new Employee();
+	employee.fullName = "Bob Smith";
+	if (employee.fullName) {
+	    alert(employee.fullName);
+	}
+	
+### 静态属性
+
+类的实例成员，仅当类被实例化的时候才会被初始化的属性。我们也可以创建类的静态成员，这些属性存在于类本身上面而不是类的实例上。
+
+	class Grid {
+	    static origin = {x: 0, y: 0};
+	    calculateDistanceFromOrigin(point: {x: number; y: number;}) {
+	        let xDist = (point.x - Grid.origin.x);
+	        let yDist = (point.y - Grid.origin.y);
+	        return Math.sqrt(xDist * xDist + yDist * yDist) / this.scale;
+	    }
+	    constructor (public scale: number) { }
+	}
+	
+	let grid1 = new Grid(1.0);  // 1x scale
+	let grid2 = new Grid(5.0);  // 5x scale
+	
+	console.log(grid1.calculateDistanceFromOrigin({x: 10, y: 10}));
+	console.log(grid2.calculateDistanceFromOrigin({x: 10, y: 10}));
+	
+### 抽象类
+抽象类做为其它派生类的基类使用。它们一般不会直接被实例化。不同于接口，抽象类可以包含成员的实现细节。abstract关键字是用于定义抽象类和在抽象类内部定义抽象方法。
+
+	abstract class Animal {
+	    abstract makeSound(): void;
+	    move(): void {
+	        console.log('roaming the earch...');
+	    }
+	}
+	
+抽象类中的抽象方法不包含具体实现并且必须在派生类中实现。抽象方法的语法与接口方法相似。两者都是定义方法签名但不包含方法体。然而，抽象方法必须包含 abstract关键字并且可以包含访问修饰符。
+
+	abstract class Department {
+	
+	    constructor(public name: string) {
+	    }
+	
+	    printName(): void {
+	        console.log('Department name: ' + this.name);
+	    }
+	
+	    abstract printMeeting(): void; // 必须在派生类中实现
+	}
+	
+	class AccountingDepartment extends Department {
+	
+	    constructor() {
+	        super('Accounting and Auditing'); // 在派生类的构造函数中必须调用 super()
+	    }
+	
+	    printMeeting(): void {
+	        console.log('The Accounting Department meets each Monday at 10am.');
+	    }
+	
+	    generateReports(): void {
+	        console.log('Generating accounting reports...');
+	    }
+	}
+	
+	let department: Department; // 允许创建一个对抽象类型的引用
+	department = new Department(); // 错误: 不能创建一个抽象类的实例
+	department = new AccountingDepartment(); // 允许对一个抽象子类进行实例化和赋值
+	department.printName();
+	department.printMeeting();
+	department.generateReports(); // 错误: 方法在声明的抽象类中不存在
+	
+	
+### 高级技巧
+
+#### 构造函数
+当你在TypeScript里声明了一个类的时候，实际上同时声明了很多东西。首先就是类的实例的类型。
+	
+	class Greeter {
+	    greeting: string;
+	    constructor(message: string) {
+	        this.greeting = message;
+	    }
+	    greet() {
+	        return "Hello, " + this.greeting;
+	    }
+	}
+	
+	let greeter: Greeter;
+	greeter = new Greeter("world");
+	console.log(greeter.greet());
+	
+	
+这里，我们写了`let greeter: Greeter`，意思是Greeter类的实例的类型是Greeter。
+
+我们也创建了一个叫做 构造函数的值。这个函数会在我们使用new创建类实例的时候被调用。上面这段代码被编译后的js代码：
+
+	let Greeter = (function () {
+	    function Greeter(message) {
+	        this.greeting = message;
+	    }
+	    Greeter.prototype.greet = function () {
+	        return "Hello, " + this.greeting;
+	    };
+	    return Greeter;
+	})();
+	
+	let greeter;
+	greeter = new Greeter("world");
+	console.log(greeter.greet());
+	
+上面的代码里，let Greeter将被赋值为构造函数。当我们调用new并执行了这个函数后，便会得到一个类的实例。这个构造函数也包含了类的所有静态属性。 换个角度说，我们可以认为类具有实例部分与静态部分这两个部分。
+
+	class Greeter {
+	    static standardGreeting = "Hello, there";
+	    greeting: string;
+	    greet() {
+	        if (this.greeting) {
+	            return "Hello, " + this.greeting;
+	        }
+	        else {
+	            return Greeter.standardGreeting;
+	        }
+	    }
+	}
+	
+	let greeter1: Greeter;
+	greeter1 = new Greeter();
+	console.log(greeter1.greet());
+	
+	let greeterMaker: typeof Greeter = Greeter;
+	greeterMaker.standardGreeting = "Hey there!";
+	
+	let greeter2: Greeter = new greeterMaker();
+	console.log(greeter2.greet());
+
+我们创建了一个叫做greeterMaker的变量。这个变量保存了这个类或者说保存了类构造函数。然后我们使用typeof Greeter，意思是取Greeter类的类型，而不是实例的类型。或者更确切的说，"告诉我 Greeter标识符的类型"，也就是构造函数的类型。这个类型包含了类的所有静态成员和构造函数。之后，就和前面一样，我们在 greeterMaker上使用 new，创建Greeter的实例。
+
+#### 把类当做接口使用
+
+	类定义会创建两个东西：类的实例类型和一个构造函数。因为类可以创建出类型，所以你能够在允许使用接口的地方使用类。
+	
+	class Point {
+	    x: number;
+	    y: number;
+	}
+	
+	interface Point3d extends Point {
+	    z: number;
+	}
+	
+	let point3d: Point3d = {x: 1, y: 2, z: 3};
+	
+## 参考资料
+* JavaScript权威指南
+* 深入理解ES6
+* ECMAScript 6 入门
+* TypeScript中文网
